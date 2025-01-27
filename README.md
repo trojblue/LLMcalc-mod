@@ -16,15 +16,19 @@ It may or may not work with MultiGPU setups. If not, use -n to specify how many 
 Example:
 `python main.py -b 950 -n 2 -v 24`
 
+
 ## Dependencies
 You'll need these to run it in python. 3.12.3 is what I wrote it in, but any modern version should work.
+
 `pip install argparse requests beautifulsoup4 psutil`
+
 
 For AMD + Linux you'll need `sudo apt install pciutils`
 
 Nvidia will need drivers, as long as `nvidia-smi` works this program should.
 
 Intel needs `lspci`, dunno if that supports windows.
+
 
 
 ## How It Works
