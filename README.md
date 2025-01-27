@@ -20,4 +20,3 @@ Example:
 Enter a Hugging Face model ID (e.g., microsoft/phi-4) to get its parameter count.
 The script fetches system RAM and VRAM specs. You can override them with flags.
 It analyzes memory requirements for several quantization schemes and estimates throughput (tk/s).
-Based on this, it recommends whether the model should run in VRAM, system RAM, or if partial offloading is needed.
