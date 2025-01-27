@@ -26,31 +26,31 @@ def get_memory_bandwidth():
             # Use system_profiler to detect Apple Silicon model
             cmd = ["system_profiler", "SPHardwareDataType"]
             output = subprocess.check_output(cmd).decode().lower()
-            
+
             # For Apple Silicon, return the unified memory bandwidth
             # M4 series
             if 'm4 max' in output: return 600  # Theoretical max for M4 Max
             elif 'm4 pro' in output: return 300
             elif 'm4' in output: return 150
-                
+
             # M3 series
             elif 'm3 max' in output: return 400
             elif 'm3 pro' in output: return 200
             elif 'm3' in output: return 100
-                
+
             # M2 series
             elif 'm2 max' in output: return 400
             elif 'm2 pro' in output: return 200
             elif 'm2' in output: return 100
-                
+
             # M1 series
             elif 'm1 ultra' in output: return 800
             elif 'm1 max' in output: return 400
             elif 'm1 pro' in output: return 200
             elif 'm1' in output: return 200
-                
+
             return 48  # Default fallback for Intel Macs
-            
+
         elif platform.system() == "Windows":
             cmd = ["powershell", "-Command", "Get-CimInstance Win32_PhysicalMemory | Select-Object -ExpandProperty Speed"]
             output = subprocess.check_output(cmd).decode().strip().split("\n")
@@ -58,13 +58,13 @@ def get_memory_bandwidth():
             if speeds:
                 max_speed = max(speeds)
                 return max_speed * 8 * 2 / 1000  # Assuming DDR
-            return 48 
-            
+            return 48
+
         elif platform.system() == "Linux":
             try:
                 cmd = ["sudo", "dmidecode", "-t", "memory"]
                 output = subprocess.check_output(cmd).decode().split("\n")
-                speeds = [int(line.split(":")[-1].strip().split(" ")[0]) 
+                speeds = [int(line.split(":")[-1].strip().split(" ")[0])
                          for line in output if "Speed:" in line and "Unknown" not in line]
                 if speeds:
                     max_speed = max(speeds)
@@ -78,11 +78,11 @@ def get_memory_bandwidth():
                         if total_gb >= 32:
                             return 64  # Assume decent RAM for 32GB+ systems
                         return 48  # Conservative estimate for smaller RAM
-            return 48 
-            
+            return 48
+
     except Exception as e:
         print(f"Error retrieving RAM speed: {e}")
-        return 48 
+        return 48
 
 def get_model_params(model_id):
     """Scrapes Hugging Face model page to extract model size in params."""
@@ -135,7 +135,7 @@ def get_ram_specs():
             output = subprocess.check_output(cmd).decode()
             ram_bytes = int(output.split('\n')[1])
             return ram_bytes / 1e9  # Convert to GB
-            
+
         # Fallback to psutil if platform-specific methods fail
         return psutil.virtual_memory().total / 1e9
     except:
@@ -145,15 +145,15 @@ def get_vram_specs():
     """Retrieves VRAM size (GB) and bandwidth (GB/s)."""
     vram = None
     bandwidth = None
-    
+
     if platform.system() == "Darwin":  # macOS
         try:
             cmd = ["system_profiler", "SPHardwareDataType"]
             output = subprocess.check_output(cmd).decode().lower()
-            
+
             # For Apple Silicon, treat total RAM as available memory pool
             total_ram = get_ram_specs()
-            
+
             # Detect chip and set bandwidth
             if 'm4 max' in output:
                 bandwidth = 600  # Theoretical max for M4 Max
@@ -204,12 +204,12 @@ def get_vram_specs():
                 elif 'intel' in output:
                     vram = 4
                     bandwidth = 100
-                
+
         except Exception as e:
             print(f"Error finding VRAM amount: {e}")
             vram = 0
             bandwidth = 0
-            
+
     elif platform.system() == "Windows":
         try:
             # Check for NVIDIA GPU
@@ -218,7 +218,7 @@ def get_vram_specs():
                 vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
             except:
                 pass
-                    
+
             # Check for AMD GPU using PowerShell
             if not vram:
                 cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object AdapterRAM"]
@@ -227,7 +227,7 @@ def get_vram_specs():
                     if line.strip().isdigit():
                         vram = int(line.strip()) / (1024**3)
                         break
-                            
+
             # Check for Intel GPU
             if not vram:
                 cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object Description"]
@@ -242,7 +242,7 @@ def get_vram_specs():
         except:
             print("Error find VRAM amount")
             vram = 0
-                        
+
     elif platform.system() == "Linux":
         try:
             try:
@@ -250,7 +250,7 @@ def get_vram_specs():
                 vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
             except:
                 pass
-                    
+
             if not vram:
                 amd_vram_paths = [
                     "/sys/class/drm/card0/device/mem_info_vram_total",
@@ -259,9 +259,9 @@ def get_vram_specs():
                 for path in amd_vram_paths:
                     if os.path.exists(path):
                         with open(path, 'r') as f:
-                            vram = int(f.read().strip()) / 1e9 
+                            vram = int(f.read().strip()) / 1e9
                             break
-                                
+
             if not vram:
                 cmd = ["lspci", "-v"]
                 output = subprocess.check_output(cmd).decode().lower()
@@ -275,17 +275,17 @@ def get_vram_specs():
         except:
             print("Error find VRAM amount")
             vram = 0
-    
+
     if platform.system() != "Darwin" and vram:
         if vram >= 49: bandwidth = 1500
         elif vram >= 25: bandwidth = 1790
-        elif vram >= 17: bandwidth = 950 
-        elif vram >= 13: bandwidth = 550 
+        elif vram >= 17: bandwidth = 950
+        elif vram >= 13: bandwidth = 550
         elif vram >= 9: bandwidth = 400
         elif vram >= 7: bandwidth = 300
         elif vram >= 5: bandwidth = 240
-        else: bandwidth = 200   
-            
+        else: bandwidth = 200
+
     return vram, bandwidth
 
 def estimate_tks(ram_bandwidth, required_mem):
@@ -297,36 +297,77 @@ def calculate_tks(base_tks, offload_ratio):
     new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
     return new_tks
 
-def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth):
-    required_base = 1.0 + params_b * 0.05 / 1e9  # Overhead in GB
-    required_mem = required_base + (params_b * bpw / 8 / 1e9)
+
+def fetch_model_config(model_id):
+    try:
+        url = f"https://huggingface.co/{model_id}/resolve/main/config.json"
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(e)
+        return None
+
+def calculate_max_tokens(available_memory_gb, config):
+    num_layers = config.get('num_hidden_layers')
+    num_kv_heads = config.get('num_key_value_heads')
+    hidden_size = config.get('hidden_size')
+    max_position_embeddings = config.get('max_position_embeddings')
+    torch_dtype = config.get('torch_dtype', 'float32')
+
+    dtype_to_bytes = {
+        'float32': 4,
+        'float16': 2,
+        'bfloat16': 2,
+        'int8': 1
+    }
+    bytes_per_element = dtype_to_bytes.get(torch_dtype, 4)  # Default to float32 if dtype is unknown
+
+    num_attention_heads = config.get('num_attention_heads')
+    head_dim = hidden_size // num_attention_heads
+
+    memory_per_token = num_layers * num_kv_heads * head_dim * 2 * bytes_per_element  # in bytes
+    available_memory_bytes = available_memory_gb * (1024 ** 3)
+    max_tokens = available_memory_bytes // memory_per_token
+    max_tokens = min(max_tokens, max_position_embeddings)
+
+    return max_tokens
+
+
+def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth, config_data):
+    required_mem = params_b * bpw / 8 / 1e9
+    ctx = 0
 
     if required_mem <= vram_gb:
-
+        if config_data: ctx = calculate_max_tokens(vram_gb - required_mem, config_data)
         base_tks = (bandwidth / required_mem)
-        return "All in VRAM", required_mem, 0, base_tks
+        return "All in VRAM", required_mem, 0, base_tks, ctx
     elif required_mem <= vram_gb + 1:
+        if config_data: ctx = calculate_max_tokens(ram_gb+vram_gb - required_mem, config_data)
         base_tks = (bandwidth / required_mem) * 0.9
-        return "KV cache offload", required_mem, 0, base_tks
+        return "KV cache offload", required_mem, 0, base_tks, ctx
     elif vram_gb > 1 and required_mem <= (ram_gb + vram_gb):
+        if config_data: ctx = calculate_max_tokens(ram_gb+vram_gb - required_mem, config_data)
         offload_ratio = (required_mem - vram_gb) / required_mem * 100
         base_tks = estimate_tks(ram_bandwidth, required_mem)
-        return "Partial offload", required_mem, offload_ratio, calculate_tks(base_tks, offload_ratio)
+        return "Partial offload", required_mem, offload_ratio, calculate_tks(base_tks, offload_ratio), ctx
     elif required_mem <= ram_gb:
+        if config_data: ctx = calculate_max_tokens(ram_gb - required_mem, config_data)
         base_tks = estimate_tks(ram_bandwidth, required_mem)
-        return "All in System RAM", required_mem, 100, base_tks
+        return "All in System RAM", required_mem, 100, base_tks, ctx
     else:
-        return "Won't run", required_mem, 0, None
+        return "Won't run", required_mem, 0, None, None
 
-def analyze_all_quantizations(params_b, vram_gb, bandwidth, ram_gb, ram_bandwidth):
+def analyze_all_quantizations(params_b, vram_gb, bandwidth, ram_gb, ram_bandwidth, config_data):
     results = {}
     for quant, bpw in QUANTIZATION_BPWS.items():
-        run_type, mem_usage, offload_ratio, tks = analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth)
+        run_type, mem_usage, offload_ratio, tks, ctx = analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth, config_data)
         results[quant] = {
             "run_type": run_type,
             "memory_required": mem_usage,
             "offload_percentage": offload_ratio,
-            "tk/s": tks
+            "tk/s": tks,
+            "context": ctx,
         }
     return results
 
@@ -342,6 +383,7 @@ if __name__ == "__main__":
 
     model_id = input("Enter Hugging Face model ID (e.g., microsoft/phi-4): ")
     params_text = get_model_params(model_id)
+    config_data = fetch_model_config(model_id)
 
     if params_text:
         params_b = convert_params_to_b(params_text)
@@ -371,7 +413,7 @@ if __name__ == "__main__":
     print(f"Estimated RAM Bandwidth: {ram_bandwidth:.2f} GB/s")
 
     print("\nAnalysis for each quantization level:")
-    results = analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth)
+    results = analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth, config_data)
 
     for quant, data in results.items():
         print(f"\n{quant.upper()}:")
