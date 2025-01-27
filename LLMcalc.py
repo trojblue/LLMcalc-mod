@@ -27,14 +27,15 @@ def get_memory_bandwidth():
             cmd = ["system_profiler", "SPHardwareDataType"]
             output = subprocess.check_output(cmd).decode().lower()
             
+            # For Apple Silicon, return the unified memory bandwidth
             # M4 series
-            if 'm4 max' in output: return 546
-            elif 'm4 pro' in output: return 273
-            elif 'm4' in output: return 120
+            if 'm4 max' in output: return 600  # Theoretical max for M4 Max
+            elif 'm4 pro' in output: return 300
+            elif 'm4' in output: return 150
                 
             # M3 series
             elif 'm3 max' in output: return 400
-            elif 'm3 pro' in output: return 150
+            elif 'm3 pro' in output: return 200
             elif 'm3' in output: return 100
                 
             # M2 series
@@ -46,10 +47,10 @@ def get_memory_bandwidth():
             elif 'm1 ultra' in output: return 800
             elif 'm1 max' in output: return 400
             elif 'm1 pro' in output: return 200
-            elif 'm1' in output: return 68.25
+            elif 'm1' in output: return 200
                 
-            return 48  # Default fallback for unknown models
-
+            return 48  # Default fallback for Intel Macs
+            
         elif platform.system() == "Windows":
             cmd = ["powershell", "-Command", "Get-CimInstance Win32_PhysicalMemory | Select-Object -ExpandProperty Speed"]
             output = subprocess.check_output(cmd).decode().strip().split("\n")
@@ -111,7 +112,34 @@ def convert_params_to_b(size_text):
 
 def get_ram_specs():
     """Retrieves total RAM in GB."""
-    return psutil.virtual_memory().total / 1e9  # Convert to GB
+    try:
+        if platform.system() == "Darwin":  # macOS
+            cmd = ["system_profiler", "SPMemoryDataType"]
+            output = subprocess.check_output(cmd).decode()
+            for line in output.split('\n'):
+                if 'Memory:' in line and 'GB' in line:
+                    # Extract the number before 'GB'
+                    ram = float(line.split(':')[1].strip().split('GB')[0].strip())
+                    return ram
+            # Fallback to sysctl if system_profiler doesn't work
+            cmd = ["sysctl", "-n", "hw.memsize"]
+            ram_bytes = int(subprocess.check_output(cmd).decode().strip())
+            return ram_bytes / 1e9  # Convert to GB
+        elif platform.system() == "Linux":
+            with open('/proc/meminfo', 'r') as f:
+                for line in f:
+                    if 'MemTotal' in line:
+                        return int(line.split()[1]) / (1024 * 1024)  # Convert KB to GB
+        elif platform.system() == "Windows":
+            cmd = ["wmic", "computersystem", "get", "totalphysicalmemory"]
+            output = subprocess.check_output(cmd).decode()
+            ram_bytes = int(output.split('\n')[1])
+            return ram_bytes / 1e9  # Convert to GB
+            
+        # Fallback to psutil if platform-specific methods fail
+        return psutil.virtual_memory().total / 1e9
+    except:
+        return psutil.virtual_memory().total / 1e9
 
 def get_vram_specs():
     """Retrieves VRAM size (GB) and bandwidth (GB/s)."""
@@ -120,56 +148,62 @@ def get_vram_specs():
     
     if platform.system() == "Darwin":  # macOS
         try:
-            cmd = ["system_profiler", "SPDisplaysDataType"]
+            cmd = ["system_profiler", "SPHardwareDataType"]
             output = subprocess.check_output(cmd).decode().lower()
             
-            # Check for Metal-capable GPU and estimate VRAM
-            if 'metal' in output:
-                total_ram = get_ram_specs()
-                
-                # M4 series detection
-                if 'm4 max' in output:
-                    vram = min(total_ram * 0.5, 128)  # Up to 128GB unified memory
-                    bandwidth = 546
-                elif 'm4 pro' in output:
-                    vram = min(total_ram * 0.4, 72)
-                    bandwidth = 273
-                elif 'm4' in output:
-                    vram = min(total_ram * 0.3, 24)
-                    bandwidth = 120
-                    
-                # M3 series detection
-                elif 'm3 max' in output:
-                    vram = min(total_ram * 0.5, 128)
-                    bandwidth = 400
-                elif 'm3 pro' in output:
-                    vram = min(total_ram * 0.4, 72)
-                    bandwidth = 150
-                elif 'm3' in output:
-                    vram = min(total_ram * 0.3, 24)
-                    bandwidth = 100
-                    
-                # M1/M2 series detection
-                elif 'm2 max' in output or 'm1 max' in output:
-                    vram = min(total_ram * 0.5, 96)
-                    bandwidth = 800
-                elif 'm2 pro' in output or 'm1 pro' in output:
-                    vram = min(total_ram * 0.4, 32)
-                    bandwidth = 400
-                elif 'm2' in output or 'm1' in output:
-                    vram = min(total_ram * 0.3, 24)
-                    bandwidth = 200
-                    
-                # Legacy Mac GPUs
-                elif 'radeon' in output or 'vega' in output:
-                    vram = 8
+            # For Apple Silicon, treat total RAM as available memory pool
+            total_ram = get_ram_specs()
+            
+            # Detect chip and set bandwidth
+            if 'm4 max' in output:
+                bandwidth = 600  # Theoretical max for M4 Max
+                vram = total_ram  # All unified memory is available
+            elif 'm4 pro' in output:
+                bandwidth = 300
+                vram = total_ram
+            elif 'm4' in output:
+                bandwidth = 150
+                vram = total_ram
+            elif 'm3 max' in output:
+                bandwidth = 400
+                vram = total_ram
+            elif 'm3 pro' in output:
+                bandwidth = 200
+                vram = total_ram
+            elif 'm3' in output:
+                bandwidth = 100
+                vram = total_ram
+            elif 'm2 max' in output:
+                bandwidth = 400
+                vram = total_ram
+            elif 'm2 pro' in output:
+                bandwidth = 200
+                vram = total_ram
+            elif 'm2' in output:
+                bandwidth = 100
+                vram = total_ram
+            elif 'm1 ultra' in output:
+                bandwidth = 800
+                vram = total_ram
+            elif 'm1 max' in output:
+                bandwidth = 400
+                vram = total_ram
+            elif 'm1 pro' in output:
+                bandwidth = 200
+                vram = total_ram
+            elif 'm1' in output:
+                bandwidth = 200
+                vram = total_ram
+            else:
+                # Intel Mac - use dedicated GPU if available
+                cmd = ["system_profiler", "SPDisplaysDataType"]
+                output = subprocess.check_output(cmd).decode().lower()
+                if 'radeon' in output or 'vega' in output:
+                    vram = 8  # Common size for AMD GPUs in Macs
                     bandwidth = 300
                 elif 'intel' in output:
                     vram = 4
                     bandwidth = 100
-            else:
-                vram = 0
-                bandwidth = 0
                 
         except Exception as e:
             print(f"Error finding VRAM amount: {e}")
@@ -242,7 +276,7 @@ def get_vram_specs():
             print("Error find VRAM amount")
             vram = 0
     
-    if vram:
+    if platform.system() != "Darwin" and vram:
         if vram >= 49: bandwidth = 1500
         elif vram >= 25: bandwidth = 1790
         elif vram >= 17: bandwidth = 950 
@@ -256,16 +290,11 @@ def get_vram_specs():
 
 def estimate_tks(ram_bandwidth, required_mem):
     """Estimates tk/s for a full RAM offload."""
-    if platform.system() == "Darwin":
-        return (ram_bandwidth / required_mem) * 0.3 # More accurate real-world performance for macOS
-    else:
-        return (ram_bandwidth / required_mem) * 0.9
+    return (ram_bandwidth / required_mem) * 0.9
 
 def calculate_tks(base_tks, offload_ratio):
-    if platform.system() == "Darwin":
-        new_tks = base_tks * (0.02 * math.exp(3.0 * (100-offload_ratio)/100) + 0.3) # More accurate real-world performance for macOS
-    else:
-        new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
+
+    new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
     return new_tks
 
 def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth):
@@ -273,16 +302,11 @@ def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_b
     required_mem = required_base + (params_b * bpw / 8 / 1e9)
 
     if required_mem <= vram_gb:
-        if platform.system() == "Darwin":
-            base_tks = (bandwidth / required_mem) * 0.3
-        else:
-            base_tks = (bandwidth / required_mem)
+
+        base_tks = (bandwidth / required_mem)
         return "All in VRAM", required_mem, 0, base_tks
     elif required_mem <= vram_gb + 1:
-        if platform.system() == "Darwin":
-            base_tks = (bandwidth / required_mem) * 0.2
-        else:
-            base_tks = (bandwidth / required_mem) * 0.9
+        base_tks = (bandwidth / required_mem) * 0.9
         return "KV cache offload", required_mem, 0, base_tks
     elif vram_gb > 1 and required_mem <= (ram_gb + vram_gb):
         offload_ratio = (required_mem - vram_gb) / required_mem * 100
