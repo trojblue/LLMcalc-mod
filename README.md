@@ -36,7 +36,9 @@ Enter a Hugging Face model ID (e.g., microsoft/phi-4) to get its parameter count
 The script fetches system RAM and VRAM specs. You can override them with flags.
 It analyzes memory requirements for several quantization schemes and estimates throughput (tk/s).
 
-``` Demo Output
+**Demo Output**
+
+```
 Enter Hugging Face model ID (e.g., microsoft/phi-4): microsoft/phi-4
 Model Parameters: 14.7B params (14.70B params)
 Total RAM: 33.53 GB
