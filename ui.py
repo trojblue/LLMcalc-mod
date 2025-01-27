@@ -99,7 +99,7 @@ class LLMCalculatorUI(QMainWindow):
         quant_levels = list(results.keys())
         run_order = ["All in VRAM", "KV cache offload", "Partial offload", "All in System RAM"]
         self.results_table.setRowCount(len(run_order) + 1)  # +1 for required memory
-        self.results_table.setColumnCount(len(quant_levels) + 1)  # +1 for labels
+        self.results_table.setColumnCount(len(quant_levels))
 
         # Set headers
         self.results_table.setHorizontalHeaderLabels( quant_levels)
@@ -113,8 +113,8 @@ class LLMCalculatorUI(QMainWindow):
                     offload_pct = 100 - results[quant]['offload_percentage']
                     cell = QTableWidgetItem(f"{tk_s:.2f} tk/s")
                     cell.setToolTip(f"{offload_pct:.1f}% Layers Offloaded")
-                    self.results_table.setItem(row, col + 1, cell)
+                    self.results_table.setItem(row, col, cell)
 
             # Memory required row
             mem_cell = QTableWidgetItem(f"{results[quant]['memory_required']:.2f} GB")
-            self.results_table.setItem(len(run_order), col + 1, mem_cell)
+            self.results_table.setItem(len(run_order), col, mem_cell)
