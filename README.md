@@ -35,3 +35,58 @@ Intel needs `lspci`, dunno if that supports windows.
 Enter a Hugging Face model ID (e.g., microsoft/phi-4) to get its parameter count.
 The script fetches system RAM and VRAM specs. You can override them with flags.
 It analyzes memory requirements for several quantization schemes and estimates throughput (tk/s).
+
+``` Demo Output
+Enter Hugging Face model ID (e.g., microsoft/phi-4): microsoft/phi-4
+Model Parameters: 14.7B params (14.70B params)
+Total RAM: 33.53 GB
+VRAM: 8.00 GB, ~448.0GB/s
+Estimated RAM Bandwidth: 64.00 GB/s
+
+Analysis for each quantization level:
+
+FP8:
+Run Type: Partial offload
+Memory Required: 16.43 GB
+GPU Offload Percentage: 48.7%
+Estimated tk/s: 5.38
+
+Q6_K_S:
+Run Type: Partial offload
+Memory Required: 13.86 GB
+GPU Offload Percentage: 57.7%
+Estimated tk/s: 7.39
+
+Q5_K_S:
+Run Type: Partial offload
+Memory Required: 11.84 GB
+GPU Offload Percentage: 67.6%
+Estimated tk/s: 10.63
+
+Q4_K_M:
+Run Type: Partial offload
+Memory Required: 10.55 GB
+GPU Offload Percentage: 75.8%
+Estimated tk/s: 14.71
+
+IQ4_XS:
+Run Type: Partial offload
+Memory Required: 9.64 GB
+GPU Offload Percentage: 83.0%
+Estimated tk/s: 19.92
+
+Q3_K_M:
+Run Type: KV cache offload
+Memory Required: 8.90 GB
+Estimated tk/s: 45.30
+
+IQ3_XS:
+Run Type: All in VRAM
+Memory Required: 7.80 GB
+Estimated tk/s: 57.45
+
+IQ2_XS:
+Run Type: All in VRAM
+Memory Required: 6.14 GB
+Estimated tk/s: 72.90
+```
