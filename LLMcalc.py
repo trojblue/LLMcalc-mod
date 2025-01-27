@@ -22,7 +22,35 @@ QUANTIZATION_BPWS = {
 def get_memory_bandwidth():
     """Retrieves system RAM speed in GB/s."""
     try:
-        if platform.system() == "Windows":
+        if platform.system() == "Darwin":  # macOS
+            # Use system_profiler to detect Apple Silicon model
+            cmd = ["system_profiler", "SPHardwareDataType"]
+            output = subprocess.check_output(cmd).decode().lower()
+            
+            # M4 series
+            if 'm4 max' in output: return 546
+            elif 'm4 pro' in output: return 273
+            elif 'm4' in output: return 120
+                
+            # M3 series
+            elif 'm3 max' in output: return 400
+            elif 'm3 pro' in output: return 150
+            elif 'm3' in output: return 100
+                
+            # M2 series
+            elif 'm2 max' in output: return 400
+            elif 'm2 pro' in output: return 200
+            elif 'm2' in output: return 100
+                
+            # M1 series
+            elif 'm1 ultra' in output: return 800
+            elif 'm1 max' in output: return 400
+            elif 'm1 pro' in output: return 200
+            elif 'm1' in output: return 68.25
+                
+            return 48  # Default fallback for unknown models
+
+        elif platform.system() == "Windows":
             cmd = ["powershell", "-Command", "Get-CimInstance Win32_PhysicalMemory | Select-Object -ExpandProperty Speed"]
             output = subprocess.check_output(cmd).decode().strip().split("\n")
             speeds = [int(s) for s in output if s.isdigit()]
@@ -86,94 +114,158 @@ def get_ram_specs():
     return psutil.virtual_memory().total / 1e9  # Convert to GB
 
 def get_vram_specs():
-        """Retrieves VRAM size (GB) and bandwidth (GB/s) for NVIDIA, AMD, and Intel GPUs."""
-        vram = None
-        bandwidth = None
-        
-        if platform.system() == "Windows":
-            try:
-                # Check for NVIDIA GPU
-                try:
-                    cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
-                    vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
-                except:
-                    pass
-                    
-                # Check for AMD GPU using PowerShell
-                if not vram:
-                    cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object AdapterRAM"]
-                    output = subprocess.check_output(cmd).decode().strip()
-                    for line in output.split('\n'):
-                        if line.strip().isdigit():
-                            vram = int(line.strip()) / (1024**3)
-                            break
-                            
-                # Check for Intel GPU
-                if not vram:
-                    cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object Description"]
-                    output = subprocess.check_output(cmd).decode().lower()
-                    if 'intel' in output and 'arc' in output:
-                        if 'a770' in output: vram = 16
-                        elif 'b580' in output: vram = 12
-                        elif 'b570' in output: vram = 10
-                        elif 'a750' in output: vram = 8
-                        elif 'a380' in output: vram = 6
-                        elif 'a310' in output: vram = 4
-            except:
-                print("Error find VRAM amount")
-                vram = 0
-                        
-        elif platform.system() == "Linux":
-            try:
-                try:
-                    cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
-                    vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
-                except:
-                    pass
-                    
-                if not vram:
-                    amd_vram_paths = [
-                        "/sys/class/drm/card0/device/mem_info_vram_total",
-                        "/sys/class/gpu/card0/device/mem_info_vram_total"
-                    ]
-                    for path in amd_vram_paths:
-                        if os.path.exists(path):
-                            with open(path, 'r') as f:
-                                vram = int(f.read().strip()) / 1e9 
-                                break
-                                
-                if not vram:
-                    cmd = ["lspci", "-v"]
-                    output = subprocess.check_output(cmd).decode().lower()
-                    if 'intel' in output and 'arc' in output:
-                        if 'a770' in output: vram = 16
-                        elif 'b580' in output: vram = 12
-                        elif 'b570' in output: vram = 10
-                        elif 'a750' in output: vram = 8
-                        elif 'a380' in output: vram = 6
-                        elif 'a310' in output: vram = 4
-            except:
-                print("Error find VRAM amount")
-                vram = 0
+    """Retrieves VRAM size (GB) and bandwidth (GB/s)."""
+    vram = None
+    bandwidth = None
     
-        if vram:
-            if vram >= 49: bandwidth = 1500
-            elif vram >= 25: bandwidth = 1790
-            elif vram >= 17: bandwidth = 950 
-            elif vram >= 13: bandwidth = 550 
-            elif vram >= 9: bandwidth = 400
-            elif vram >= 7: bandwidth = 300
-            elif vram >= 5: bandwidth = 240
-            else: bandwidth = 200   
+    if platform.system() == "Darwin":  # macOS
+        try:
+            cmd = ["system_profiler", "SPDisplaysDataType"]
+            output = subprocess.check_output(cmd).decode().lower()
             
-        return vram, bandwidth
+            # Check for Metal-capable GPU and estimate VRAM
+            if 'metal' in output:
+                total_ram = get_ram_specs()
+                
+                # M4 series detection
+                if 'm4 max' in output:
+                    vram = min(total_ram * 0.5, 128)  # Up to 128GB unified memory
+                    bandwidth = 546
+                elif 'm4 pro' in output:
+                    vram = min(total_ram * 0.4, 72)
+                    bandwidth = 273
+                elif 'm4' in output:
+                    vram = min(total_ram * 0.3, 24)
+                    bandwidth = 120
+                    
+                # M3 series detection
+                elif 'm3 max' in output:
+                    vram = min(total_ram * 0.5, 128)
+                    bandwidth = 400
+                elif 'm3 pro' in output:
+                    vram = min(total_ram * 0.4, 72)
+                    bandwidth = 150
+                elif 'm3' in output:
+                    vram = min(total_ram * 0.3, 24)
+                    bandwidth = 100
+                    
+                # M1/M2 series detection
+                elif 'm2 max' in output or 'm1 max' in output:
+                    vram = min(total_ram * 0.5, 96)
+                    bandwidth = 800
+                elif 'm2 pro' in output or 'm1 pro' in output:
+                    vram = min(total_ram * 0.4, 32)
+                    bandwidth = 400
+                elif 'm2' in output or 'm1' in output:
+                    vram = min(total_ram * 0.3, 24)
+                    bandwidth = 200
+                    
+                # Legacy Mac GPUs
+                elif 'radeon' in output or 'vega' in output:
+                    vram = 8
+                    bandwidth = 300
+                elif 'intel' in output:
+                    vram = 4
+                    bandwidth = 100
+            else:
+                vram = 0
+                bandwidth = 0
+                
+        except Exception as e:
+            print(f"Error finding VRAM amount: {e}")
+            vram = 0
+            bandwidth = 0
+            
+    elif platform.system() == "Windows":
+        try:
+            # Check for NVIDIA GPU
+            try:
+                cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
+                vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
+            except:
+                pass
+                    
+            # Check for AMD GPU using PowerShell
+            if not vram:
+                cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object AdapterRAM"]
+                output = subprocess.check_output(cmd).decode().strip()
+                for line in output.split('\n'):
+                    if line.strip().isdigit():
+                        vram = int(line.strip()) / (1024**3)
+                        break
+                            
+            # Check for Intel GPU
+            if not vram:
+                cmd = ["powershell", "-Command", "Get-WmiObject Win32_VideoController | Select-Object Description"]
+                output = subprocess.check_output(cmd).decode().lower()
+                if 'intel' in output and 'arc' in output:
+                    if 'a770' in output: vram = 16
+                    elif 'b580' in output: vram = 12
+                    elif 'b570' in output: vram = 10
+                    elif 'a750' in output: vram = 8
+                    elif 'a380' in output: vram = 6
+                    elif 'a310' in output: vram = 4
+        except:
+            print("Error find VRAM amount")
+            vram = 0
+                        
+    elif platform.system() == "Linux":
+        try:
+            try:
+                cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
+                vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
+            except:
+                pass
+                    
+            if not vram:
+                amd_vram_paths = [
+                    "/sys/class/drm/card0/device/mem_info_vram_total",
+                    "/sys/class/gpu/card0/device/mem_info_vram_total"
+                ]
+                for path in amd_vram_paths:
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            vram = int(f.read().strip()) / 1e9 
+                            break
+                                
+            if not vram:
+                cmd = ["lspci", "-v"]
+                output = subprocess.check_output(cmd).decode().lower()
+                if 'intel' in output and 'arc' in output:
+                    if 'a770' in output: vram = 16
+                    elif 'b580' in output: vram = 12
+                    elif 'b570' in output: vram = 10
+                    elif 'a750' in output: vram = 8
+                    elif 'a380' in output: vram = 6
+                    elif 'a310' in output: vram = 4
+        except:
+            print("Error find VRAM amount")
+            vram = 0
+    
+    if vram:
+        if vram >= 49: bandwidth = 1500
+        elif vram >= 25: bandwidth = 1790
+        elif vram >= 17: bandwidth = 950 
+        elif vram >= 13: bandwidth = 550 
+        elif vram >= 9: bandwidth = 400
+        elif vram >= 7: bandwidth = 300
+        elif vram >= 5: bandwidth = 240
+        else: bandwidth = 200   
+            
+    return vram, bandwidth
 
 def estimate_tks(ram_bandwidth, required_mem):
     """Estimates tk/s for a full RAM offload."""
-    return (ram_bandwidth / required_mem) * 0.9
+    if platform.system() == "Darwin":
+        return (ram_bandwidth / required_mem) * 0.3 # More accurate real-world performance for macOS
+    else:
+        return (ram_bandwidth / required_mem) * 0.9
 
 def calculate_tks(base_tks, offload_ratio):
-    new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
+    if platform.system() == "Darwin":
+        new_tks = base_tks * (0.02 * math.exp(3.0 * (100-offload_ratio)/100) + 0.3) # More accurate real-world performance for macOS
+    else:
+        new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
     return new_tks
 
 def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth):
@@ -181,10 +273,16 @@ def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_b
     required_mem = required_base + (params_b * bpw / 8 / 1e9)
 
     if required_mem <= vram_gb:
-        base_tks = bandwidth/ required_mem
+        if platform.system() == "Darwin":
+            base_tks = (bandwidth / required_mem) * 0.3
+        else:
+            base_tks = (bandwidth / required_mem)
         return "All in VRAM", required_mem, 0, base_tks
     elif required_mem <= vram_gb + 1:
-        base_tks = (bandwidth/ required_mem)*0.9
+        if platform.system() == "Darwin":
+            base_tks = (bandwidth / required_mem) * 0.2
+        else:
+            base_tks = (bandwidth / required_mem) * 0.9
         return "KV cache offload", required_mem, 0, base_tks
     elif vram_gb > 1 and required_mem <= (ram_gb + vram_gb):
         offload_ratio = (required_mem - vram_gb) / required_mem * 100
