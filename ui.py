@@ -7,7 +7,7 @@ class LLMCalculatorUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("LLM Calculator")
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(1000, 400)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -67,10 +67,13 @@ class LLMCalculatorUI(QMainWindow):
 
     def calculate(self):
         """Perform calculation and display results in table"""
+        self.results_table.clearContents()
+
         model_id = self.model_input.text().strip()
         if not model_id:
             self.system_info.setText("Please enter a model ID")
             return
+        self.config_data = LLMcalc.fetch_model_config(model_id)
 
         params_text = LLMcalc.get_model_params(model_id)
         if not params_text:
@@ -94,7 +97,7 @@ class LLMCalculatorUI(QMainWindow):
             self.system_info.setText("Invalid number format in overrides")
             return
 
-        results = LLMcalc.analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth)
+        results = LLMcalc.analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth, self.config_data)
 
         quant_levels = list(results.keys())
         run_order = ["All in VRAM", "KV cache offload", "Partial offload", "All in System RAM"]
@@ -112,7 +115,7 @@ class LLMCalculatorUI(QMainWindow):
                     tk_s = results[quant]['tk/s']
                     offload_pct = 100 - results[quant]['offload_percentage']
                     cell = QTableWidgetItem(f"{tk_s:.2f} tk/s")
-                    cell.setToolTip(f"{offload_pct:.1f}% Layers Offloaded")
+                    cell.setToolTip(f"{offload_pct:.1f}% Layers Offloaded, {round(results[quant]['context'])}tk max context length")
                     self.results_table.setItem(row, col, cell)
 
             # Memory required row
