@@ -1,4 +1,4 @@
-#LLM Calculator
+# LLM Calculator
 
 This script estimates the memory requirements and performance of Hugging Face models based on quantization levels. It fetches model parameters, calculates required memory, and analyzes performance with different RAM/VRAM configurations.
 
