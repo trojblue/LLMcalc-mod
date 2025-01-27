@@ -20,7 +20,7 @@ Example:
 ## Dependencies
 You'll need these to run it in python. 3.12.3 is what I wrote it in, but any modern version should work.
 
-`pip install argparse requests beautifulsoup4 psutil`
+`pip install argparse requests beautifulsoup4 psutil PySide6`
 
 
 For AMD + Linux you'll need `sudo apt install pciutils`
@@ -36,7 +36,12 @@ Enter a Hugging Face model ID (e.g., microsoft/phi-4) to get its parameter count
 The script fetches system RAM and VRAM specs. You can override them with flags.
 It analyzes memory requirements for several quantization schemes and estimates throughput (tk/s).
 
-**Demo Output**
+![GUI Preview](gui.png)
+
+Hover over a cell to see how many layers you need to offload, and what context you can fit without KV cache quantizing.
+
+
+**Cli Output**
 
 ```
 Enter Hugging Face model ID (e.g., microsoft/phi-4): microsoft/phi-4
