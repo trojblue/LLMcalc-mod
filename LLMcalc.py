@@ -174,7 +174,6 @@ def estimate_tks(ram_bandwidth, required_mem):
 
 def calculate_tks(base_tks, offload_ratio):
     new_tks = base_tks * (0.052 * math.exp(4.55 * (100-(offload_ratio))/100) + 1.06)
-    print(new_tks)
     return new_tks
 
 def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_bandwidth):
