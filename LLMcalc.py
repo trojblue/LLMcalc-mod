@@ -247,7 +247,10 @@ def get_vram_specs():
         try:
             try:
                 cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
-                vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
+                output = subprocess.check_output(cmd).decode().strip()
+                lines = output.splitlines()
+                vrams = [float(line.strip()) for line in lines if line.strip() != ""]
+                vram = (sum(vrams) / len(vrams)) / 1024
             except:
                 pass
 
