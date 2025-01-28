@@ -26,6 +26,9 @@ class LLMCalculatorUI(QMainWindow):
 
         vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
 
+        if not vram: vram = 0
+        if not bandwidth: bandwidth = 0
+
         vram_label = QLabel("VRAM (GB):")
         self.vram_input = QLineEdit(str(vram))
 
@@ -67,6 +70,8 @@ class LLMCalculatorUI(QMainWindow):
 
         if real_num_gpus: num_gpus = real_num_gpus
         if real_bandwidth: bandwidth = real_bandwidth
+        if not vram: vram = 0
+        if not bandwidth: bandwidth = 0
 
         info = f"System Info: RAM {total_ram:.2f} GB | VRAM {num_gpus}x{vram:.2f} GB | GPU BW ~{bandwidth:.1f} GB/s | RAM BW {ram_bandwidth:.2f} GB/s"
         self.system_info.setText(info)

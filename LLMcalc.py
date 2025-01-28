@@ -377,7 +377,7 @@ def analyze_quantization(params_b, vram_gb, bandwidth, ram_gb, quant, bpw, ram_b
         if config_data: ctx = calculate_max_tokens(vram_gb - required_mem, config_data)
         base_tks = (bandwidth / required_mem)
         return "All in VRAM", required_mem, 0, base_tks, ctx
-    elif required_mem <= vram_gb + 1:
+    elif required_mem <= vram_gb + 1 and vram_gb > 1:
         if config_data: ctx = calculate_max_tokens(ram_gb+vram_gb - required_mem, config_data)
         base_tks = (bandwidth / required_mem) * 0.9
         return "KV cache offload", required_mem, 0, base_tks, ctx
