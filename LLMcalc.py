@@ -298,22 +298,31 @@ def calculate_tks(base_tks, offload_ratio):
     return new_tks
 
 
-def fetch_model_config(model_id):
+def fetch_model_config(model_id, params=8):
     try:
         url = f"https://huggingface.co/{model_id}/resolve/main/config.json"
         response = requests.get(url)
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(e)
-        return None
+
+        config = {
+            "num_hidden_layers": round(-8.58747 + 20.89887 * math.log(params)), # 8 model sample, all different sizes
+            "num_key_value_heads": 8, # looks to be standard
+            "hidden_size": round(2021.25755 * params**0.352259), # R^2 f 0.98, good enough if not logically sound
+            "max_position_embeddings": 131072, # Assume 128k
+            "torch_dtype": "bfloat16",
+            "num_attention_heads": round(-12.74339 + 21.26379 * math.log(params)), # 8 model sample, all different sizes
+        }
+
+        return config
 
 def calculate_max_tokens(available_memory_gb, config):
     num_layers = config.get('num_hidden_layers')
     num_kv_heads = config.get('num_key_value_heads')
     hidden_size = config.get('hidden_size')
     max_position_embeddings = config.get('max_position_embeddings')
-    torch_dtype = config.get('torch_dtype', 'float32')
+    torch_dtype = config.get('torch_dtype', 'bfloat16')
 
     dtype_to_bytes = {
         'float32': 4,
@@ -321,7 +330,7 @@ def calculate_max_tokens(available_memory_gb, config):
         'bfloat16': 2,
         'int8': 1
     }
-    bytes_per_element = dtype_to_bytes.get(torch_dtype, 4)  # Default to float32 if dtype is unknown
+    bytes_per_element = dtype_to_bytes.get(torch_dtype, 2)  # Default to float32 if dtype is unknown
 
     num_attention_heads = config.get('num_attention_heads')
     head_dim = hidden_size // num_attention_heads
@@ -383,7 +392,6 @@ if __name__ == "__main__":
 
     model_id = input("Enter Hugging Face model ID (e.g., microsoft/phi-4): ")
     params_text = get_model_params(model_id)
-    config_data = fetch_model_config(model_id)
 
     if params_text:
         params_b = convert_params_to_b(params_text)
@@ -391,6 +399,8 @@ if __name__ == "__main__":
     else:
         print("Could not determine model parameters.")
         exit()
+
+    config_data = fetch_model_config(model_id, params_b / 1e9)
 
     total_ram = get_ram_specs()
     print(f"Total RAM: {total_ram:.2f} GB")
@@ -423,3 +433,4 @@ if __name__ == "__main__":
             print(f"GPU Offload Percentage: {100-data['offload_percentage']:.1f}%")
         if data['tk/s']:
             print(f"Estimated tk/s: {data['tk/s']:.2f}")
+        print(f"Max Context Length: {int(data['context'])} tk")
