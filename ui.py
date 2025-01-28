@@ -24,15 +24,18 @@ class LLMCalculatorUI(QMainWindow):
         # Hardware override section
         hw_layout = QHBoxLayout()
 
+        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
+
         vram_label = QLabel("VRAM (GB):")
-        self.vram_input = QLineEdit(str(LLMcalc.get_vram_specs()[0]))
+        self.vram_input = QLineEdit(str(vram))
 
         bandwidth_label = QLabel("Bandwidth (GB/s):")
-        self.bandwidth_input = QLineEdit(str(LLMcalc.get_vram_specs()[1]))
+        self.bandwidth_input = QLineEdit(str(bandwidth))
 
         gpu_count_label = QLabel("GPU Count:")
         self.gpu_count = QComboBox()
-        self.gpu_count.addItems([str(i) for i in range(1, 9)])
+        self.gpu_count.addItems([str(i) for i in range(1, 16)])
+        self.gpu_count.setCurrentIndex(num_gpus-1)
 
         hw_layout.addWidget(vram_label)
         hw_layout.addWidget(self.vram_input)
@@ -56,13 +59,16 @@ class LLMCalculatorUI(QMainWindow):
         layout.addWidget(self.system_info)
         self.update_system_info()
 
-    def update_system_info(self):
+    def update_system_info(self, real_bandwidth=None, real_num_gpus=None):
         """Update system information display"""
         total_ram = LLMcalc.get_ram_specs()
-        vram, bandwidth = LLMcalc.get_vram_specs()
+        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
         ram_bandwidth = LLMcalc.get_memory_bandwidth()
 
-        info = f"System Info: RAM {total_ram:.2f} GB | VRAM {vram:.2f} GB | GPU BW ~{bandwidth} GB/s | RAM BW {ram_bandwidth:.2f} GB/s"
+        if real_num_gpus: num_gpus = real_num_gpus
+        if real_bandwidth: bandwidth = real_bandwidth
+
+        info = f"System Info: RAM {total_ram:.2f} GB | VRAM {num_gpus}x{vram:.2f} GB | GPU BW ~{bandwidth:.1f} GB/s | RAM BW {ram_bandwidth:.2f} GB/s"
         self.system_info.setText(info)
 
     def calculate(self):
@@ -82,7 +88,7 @@ class LLMCalculatorUI(QMainWindow):
 
         params_b = LLMcalc.convert_params_to_b(params_text)
         total_ram = LLMcalc.get_ram_specs()
-        vram, bandwidth = LLMcalc.get_vram_specs()
+        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
         ram_bandwidth = LLMcalc.get_memory_bandwidth()
 
         # Apply overrides
@@ -90,12 +96,20 @@ class LLMCalculatorUI(QMainWindow):
             vram = float(self.vram_input.text()) if self.vram_input.text().strip() else vram
             bandwidth = float(self.bandwidth_input.text()) if self.bandwidth_input.text().strip() else bandwidth
             gpu_count = int(self.gpu_count.currentText())
-            if gpu_count > 1:
-                vram *= gpu_count
-                bandwidth = (bandwidth * gpu_count) * 0.42
+
+            coef = 1
+            adj_bandwidth = 0
+            for i in range(gpu_count):
+                adj_bandwidth += bandwidth * coef
+                coef = 0.42
+            bandwidth = adj_bandwidth
+            vram *= gpu_count
+
         except ValueError:
             self.system_info.setText("Invalid number format in overrides")
             return
+
+        self.update_system_info(bandwidth, gpu_count)
 
         results = LLMcalc.analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth, self.config_data)
 
