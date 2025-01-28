@@ -79,6 +79,8 @@ def get_memory_bandwidth():
                             return 64  # Assume decent RAM for 32GB+ systems
                         return 48  # Conservative estimate for smaller RAM
             return 48
+            
+        else: print("Lmao freeBSD user?\n")
 
     except Exception as e:
         print(f"Error retrieving RAM speed: {e}")
@@ -312,7 +314,12 @@ def get_vram_specs():
         elif vram >= 5: bandwidth = 240
         else: bandwidth = 200
 
-    return vram, bandwidth, num_gpus
+    if not vram: 
+        vram = 0
+        bandwidth = 0
+        brand = "iGPU"
+
+    return vram, bandwidth, num_gpus, brand
 
 def estimate_tks(ram_bandwidth, required_mem):
     """Estimates tk/s for a full RAM offload."""
@@ -431,7 +438,9 @@ if __name__ == "__main__":
     total_ram = get_ram_specs()
     print(f"Total RAM: {total_ram:.2f} GB")
 
-    vram, bandwidth, num_gpus = get_vram_specs()
+    vram, bandwidth, num_gpus, brand = get_vram_specs()
+    
+    print(f"GPU: {brand}")
 
     if args.num_gpus: num_gpus = args.num_gpus
 

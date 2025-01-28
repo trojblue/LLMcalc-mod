@@ -24,9 +24,9 @@ class LLMCalculatorUI(QMainWindow):
         # Hardware override section
         hw_layout = QHBoxLayout()
 
-        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
+        vram, bandwidth, num_gpus, brand = LLMcalc.get_vram_specs()
 
-        if not vram: vram = 0
+        if not vram: vram = 0 # Just in case
         if not bandwidth: bandwidth = 0
 
         vram_label = QLabel("VRAM (GB):")
@@ -65,7 +65,7 @@ class LLMCalculatorUI(QMainWindow):
     def update_system_info(self, real_bandwidth=None, real_num_gpus=None):
         """Update system information display"""
         total_ram = LLMcalc.get_ram_specs()
-        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
+        vram, bandwidth, num_gpus, brand = LLMcalc.get_vram_specs()
         ram_bandwidth = LLMcalc.get_memory_bandwidth()
 
         if real_num_gpus: num_gpus = real_num_gpus
@@ -73,7 +73,7 @@ class LLMCalculatorUI(QMainWindow):
         if not vram: vram = 0
         if not bandwidth: bandwidth = 0
 
-        info = f"System Info: RAM {total_ram:.2f} GB | VRAM {num_gpus}x{vram:.2f} GB | GPU BW ~{bandwidth:.1f} GB/s | RAM BW {ram_bandwidth:.2f} GB/s"
+        info = f"System Info: RAM {total_ram:.2f} GB | RAM BW {ram_bandwidth:.2f} GB/s | VRAM {num_gpus}x{vram:.2f} GB | GPU BW ~{bandwidth:.1f} GB/s | GPU: {brand} "
         self.system_info.setText(info)
 
     def calculate(self):
@@ -93,7 +93,7 @@ class LLMCalculatorUI(QMainWindow):
 
         params_b = LLMcalc.convert_params_to_b(params_text)
         total_ram = LLMcalc.get_ram_specs()
-        vram, bandwidth, num_gpus = LLMcalc.get_vram_specs()
+        vram, bandwidth, num_gpus, brand = LLMcalc.get_vram_specs()
         ram_bandwidth = LLMcalc.get_memory_bandwidth()
 
         # Apply overrides
