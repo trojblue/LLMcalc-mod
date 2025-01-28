@@ -20,8 +20,9 @@ Example:
 ## Dependencies
 You'll need these to run it in python. 3.12.3 is what I wrote it in, but any modern version should work.
 
-`pip install argparse requests beautifulsoup4 psutil PySide6`
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run with:
 
+`uv run main.py`
 
 For AMD + Linux you'll need `sudo apt install pciutils`
 

@@ -1,3 +1,12 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "beautifulsoup4",
+#     "psutil",
+#     "pyside6",
+#     "requests",
+# ]
+# ///
 import sys
 from PySide6.QtWidgets import QApplication
 from ui import LLMCalculatorUI
