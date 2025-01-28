@@ -145,6 +145,8 @@ def get_vram_specs():
     """Retrieves VRAM size (GB) and bandwidth (GB/s)."""
     vram = None
     bandwidth = None
+    brand = None
+    num_gpus = 1
 
     if platform.system() == "Darwin":  # macOS
         try:
@@ -201,9 +203,13 @@ def get_vram_specs():
                 if 'radeon' in output or 'vega' in output:
                     vram = 8  # Common size for AMD GPUs in Macs
                     bandwidth = 300
+                    brand = "AMD"
                 elif 'intel' in output:
                     vram = 4
                     bandwidth = 100
+                    brand = "Intel"
+
+            if not brand: brand = "Apple"
 
         except Exception as e:
             print(f"Error finding VRAM amount: {e}")
@@ -215,7 +221,12 @@ def get_vram_specs():
             # Check for NVIDIA GPU
             try:
                 cmd = ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"]
-                vram = float(subprocess.check_output(cmd).decode().strip()) / 1024
+                output = subprocess.check_output(cmd).decode().strip()
+                lines = output.splitlines()
+                vrams = [float(line.strip()) for line in lines if line.strip() != ""]
+                vram = (sum(vrams) / len(vrams)) / 1024
+                brand = "Nvidia"
+                num_gpus = len(vrams)
             except:
                 pass
 
@@ -226,6 +237,7 @@ def get_vram_specs():
                 for line in output.split('\n'):
                     if line.strip().isdigit():
                         vram = int(line.strip()) / (1024**3)
+                        brand = "AMD"
                         break
 
             # Check for Intel GPU
@@ -239,6 +251,8 @@ def get_vram_specs():
                     elif 'a750' in output: vram = 8
                     elif 'a380' in output: vram = 6
                     elif 'a310' in output: vram = 4
+                    else: vram = 0
+                    brand = "Intel"
         except:
             print("Error find VRAM amount")
             vram = 0
@@ -251,19 +265,26 @@ def get_vram_specs():
                 lines = output.splitlines()
                 vrams = [float(line.strip()) for line in lines if line.strip() != ""]
                 vram = (sum(vrams) / len(vrams)) / 1024
+                brand = "Nvidia"
+                num_gpus = len(vrams)
             except:
                 pass
 
             if not vram:
                 amd_vram_paths = [
                     "/sys/class/drm/card0/device/mem_info_vram_total",
-                    "/sys/class/gpu/card0/device/mem_info_vram_total"
+                    "/sys/class/gpu/card0/device/mem_info_vram_total",
+                    "/sys/class/drm/card1/device/mem_info_vram_total",
+                    "/sys/class/gpu/card1/device/mem_info_vram_total"
                 ]
+                options = []
                 for path in amd_vram_paths:
                     if os.path.exists(path):
                         with open(path, 'r') as f:
-                            vram = int(f.read().strip()) / 1e9
-                            break
+                            options.append(int(f.read().strip()) / 1e9)
+                if options != []:
+                    vram = max(options)
+                    brand = "AMD"
 
             if not vram:
                 cmd = ["lspci", "-v"]
@@ -275,6 +296,8 @@ def get_vram_specs():
                     elif 'a750' in output: vram = 8
                     elif 'a380' in output: vram = 6
                     elif 'a310' in output: vram = 4
+                    else: vram = 0
+                    brand = "Intel"
         except:
             print("Error find VRAM amount")
             vram = 0
@@ -289,7 +312,7 @@ def get_vram_specs():
         elif vram >= 5: bandwidth = 240
         else: bandwidth = 200
 
-    return vram, bandwidth
+    return vram, bandwidth, num_gpus
 
 def estimate_tks(ram_bandwidth, required_mem):
     """Estimates tk/s for a full RAM offload."""
@@ -386,7 +409,7 @@ def analyze_all_quantizations(params_b, vram_gb, bandwidth, ram_gb, ram_bandwidt
 def parse_args():
     parser = argparse.ArgumentParser(description="Analyze Hugging Face model with quantization.")
     parser.add_argument("-b", "--bandwidth", type=float, help="Override bandwidth in GB/s.")
-    parser.add_argument("-n", "--num-gpus", type=int, default=1, help="Number of GPUs.")
+    parser.add_argument("-n", "--num-gpus", type=int, help="Number of GPUs.")
     parser.add_argument("-v", "--vram", type=int, help="Amount of VRAM in GB")
     return parser.parse_args()
 
@@ -408,7 +431,9 @@ if __name__ == "__main__":
     total_ram = get_ram_specs()
     print(f"Total RAM: {total_ram:.2f} GB")
 
-    vram, bandwidth = get_vram_specs()
+    vram, bandwidth, num_gpus = get_vram_specs()
+
+    if args.num_gpus: num_gpus = args.num_gpus
 
     if args.vram:
         vram = args.vram
@@ -416,17 +441,23 @@ if __name__ == "__main__":
     if args.bandwidth:
         bandwidth = args.bandwidth
 
-    if args.num_gpus > 1:
-        vram *= args.num_gpus
-        bandwidth = (bandwidth*args.num_gpus) * 0.42
+    #if num_gpus > 1:
+    #    vram *= num_gpus
+    #    bandwidth = (bandwidth*num_gpus) * 0.42 # This is wrong, leads to less total bandwidth the more GPUs you have
 
-    print(f"VRAM: {vram:.2f} GB, ~{bandwidth}GB/s")
+
+    coef = 1
+    for i in range(num_gpus):
+        bandwidth += bandwidth * coef
+        coef = 0.42
+
+    print(f"VRAM: {num_gpus}x{vram:.2f} GB, ~{bandwidth}GB/s total bandwidth")
 
     ram_bandwidth = get_memory_bandwidth()
     print(f"Estimated RAM Bandwidth: {ram_bandwidth:.2f} GB/s")
 
     print("\nAnalysis for each quantization level:")
-    results = analyze_all_quantizations(params_b, vram, bandwidth, total_ram, ram_bandwidth, config_data)
+    results = analyze_all_quantizations(params_b, vram*num_gpus, bandwidth, total_ram, ram_bandwidth, config_data)
 
     for quant, data in results.items():
         print(f"\n{quant.upper()}:")
